@@ -744,6 +744,8 @@ allocate_optimized_out_value (struct type *type)
 
   mark_value_bytes_optimized_out (retval, 0, TYPE_LENGTH (type));
 
+  set_value_lazy (retval, 0);
+
   return retval;
 }
 
