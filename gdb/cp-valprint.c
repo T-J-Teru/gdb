@@ -298,13 +298,7 @@ cp_print_value_fields (struct type *type, struct type *real_type,
 					      TYPE_FIELD_BITPOS (type, i),
 					      TYPE_FIELD_BITSIZE (type, i)))
 		{
-		  int optimizedp, unavailablep;
-
-		  value_availability_flags (val, &optimizedp, &unavailablep);
-		  if (optimizedp)
-		    val_print_optimized_out (stream);
-		  else
-		    val_print_unavailable (stream);
+		  val_print_unavailability_reason (val, stream);
 		}
 	      else
 		{

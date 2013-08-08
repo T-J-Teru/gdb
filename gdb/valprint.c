@@ -314,13 +314,7 @@ valprint_check_validity (struct ui_file *stream,
       if (!value_bits_available (val, TARGET_CHAR_BIT * embedded_offset,
 				 TARGET_CHAR_BIT * TYPE_LENGTH (type)))
 	{
-	  int optimizedp, unavailablep;
-	  
-	  value_availability_flags (val, &optimizedp, &unavailablep);
-	  if (optimizedp)
-	    val_print_optimized_out (stream);
-	  else
-	    val_print_unavailable (stream);
+	  val_print_unavailability_reason (val, stream);
 	  return 0;
 	}
 
@@ -351,6 +345,19 @@ void
 val_print_invalid_address (struct ui_file *stream)
 {
   fprintf_filtered (stream, _("<invalid address>"));
+}
+
+void
+val_print_unavailability_reason (const struct value *value,
+				 struct ui_file *stream)
+{
+  int optimizedp, unavailablep;
+
+  value_availability_flags (value, &optimizedp, &unavailablep);
+  if (optimizedp)
+    val_print_optimized_out (stream);
+  else
+    val_print_unavailable (stream);
 }
 
 /* A generic val_print that is suitable for use by language
@@ -805,15 +812,7 @@ value_check_printable (struct value *val, struct ui_file *stream,
       if (options->summary && !scalar_type_p (value_type (val)))
 	fprintf_filtered (stream, "...");
       else
-	{
-	  int optimizedp, unavailablep;
-
-	  value_availability_flags (val, &optimizedp, &unavailablep);
-	  if (optimizedp)
-	    val_print_optimized_out (stream);
-	  else
-	    val_print_unavailable (stream);
-	}
+	val_print_unavailability_reason (val, stream);
       return 0;
     }
 
@@ -973,15 +972,7 @@ val_print_scalar_formatted (struct type *type,
   /* A scalar object that does not have all bits available can't be
      printed, because all bits contribute to its representation.  */
   if (!value_bytes_available (val, embedded_offset, TYPE_LENGTH (type)))
-    {
-      int optimizedp, unavailablep;
-      
-      value_availability_flags (val, &optimizedp, &unavailablep);
-      if (optimizedp)
-	val_print_optimized_out (stream);
-      else
-	val_print_unavailable (stream);
-    }
+    val_print_unavailability_reason (val, stream);
   else
     print_scalar_formatted (valaddr + embedded_offset, type,
 			    options, size, stream);
