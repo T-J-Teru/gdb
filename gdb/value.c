@@ -742,7 +742,7 @@ allocate_optimized_out_value (struct type *type)
 {
   struct value *retval = allocate_value_lazy (type);
 
-  set_value_optimized_out (retval, 1);
+  mark_value_bytes_optimized_out (retval, 0, TYPE_LENGTH (type));
 
   return retval;
 }
@@ -1062,16 +1062,28 @@ value_optimized_out (struct value *value)
   return value->optimized_out;
 }
 
-int
-value_optimized_out_const (const struct value *value)
-{
-  return value->optimized_out;
-}
+/* Mark contents of VALUE as optimized out, starting at OFFSET bytes, and
+   the following LENGTH bytes.  */
 
 void
-set_value_optimized_out (struct value *value, int val)
+mark_value_bytes_optimized_out (struct value *value, int offset, int length)
 {
-  value->optimized_out = val;
+  mark_value_bits_optimized_out (value,
+				 offset * TARGET_CHAR_BIT,
+				 length * TARGET_CHAR_BIT);
+}
+
+/* Mark contents of VALUE as optimized out, starting at OFFSET bits, and
+   the following LENGTH bits.  */
+
+void
+mark_value_bits_optimized_out (struct value *value,
+			       int offset ATTRIBUTE_UNUSED,
+			       int length ATTRIBUTE_UNUSED)
+{
+  /* For now just set the optimized out flag to indicate that part of the
+     value is optimized out, this will be expanded upon in later patches.  */
+  value->optimized_out = 1;  
 }
 
 int
@@ -3439,7 +3451,8 @@ value_fetch_lazy (struct value *val)
       if (!value_bits_valid (parent,
 			     TARGET_CHAR_BIT * offset + value_bitpos (val),
 			     value_bitsize (val)))
-	set_value_optimized_out (val, 1);
+	mark_value_bytes_optimized_out (val, value_embedded_offset (val),
+					TYPE_LENGTH (type));
       else if (!unpack_value_bits_as_long (value_type (val),
 				      value_contents_for_printing (parent),
 				      offset,
@@ -3498,7 +3511,7 @@ value_fetch_lazy (struct value *val)
 
       /* If the register was not saved, mark it optimized out.  */
       if (value_optimized_out (new_val))
-	set_value_optimized_out (val, 1);
+	mark_value_bytes_optimized_out (val, 0, TYPE_LENGTH (value_type (val)));
       else
 	{
 	  set_value_lazy (val, 0);
