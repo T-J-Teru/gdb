@@ -335,11 +335,25 @@ struct value
 int
 value_bytes_available (const struct value *value, int offset, int length)
 {
+  return value_bits_available (value,
+			       offset * TARGET_CHAR_BIT,
+			       length * TARGET_CHAR_BIT);
+}
+
+int
+value_bits_available (const struct value *value, int offset, int length)
+{
   gdb_assert (!value->lazy);
 
-  return !ranges_contain (value->unavailable,
-			  offset * TARGET_CHAR_BIT,
-			  length * TARGET_CHAR_BIT);
+  if (ranges_contain (value->unavailable, offset, length))
+    return 0;
+  if (!value->optimized_out)
+    return 1;
+  if (value->lval != lval_computed
+      || !value->location.computed.funcs->check_validity)
+    return 0;
+  return value->location.computed.funcs->check_validity (value, offset,
+							 length);
 }
 
 int
@@ -350,9 +364,41 @@ value_entirely_available (struct value *value)
   if (value->lazy)
     value_fetch_lazy (value);
 
-  if (VEC_empty (range_s, value->unavailable))
+  if (VEC_empty (range_s, value->unavailable)
+      && !value->optimized_out)
     return 1;
   return 0;
+}
+
+int
+value_entirely_unavailable (struct value *value)
+{
+  if (value->lazy)
+    value_fetch_lazy (value);
+
+  /* Check if the unavailable vector covers the entire value.  As we merge
+     entries in the vector, if the entire value is covered then we'll
+     have a single entry starting at offset 0 and length as long as the
+     type.  */
+  if (VEC_length (range_s, value->unavailable) == 1)
+    {
+      const range_s *r;
+      struct type *type;
+
+      type = check_typedef (value_type (value));
+      r = VEC_index (range_s, value->unavailable, 0);
+      if (r->offset == 0 && r->length >= TARGET_CHAR_BIT * TYPE_LENGTH (type))
+	return 1;
+    }
+
+  /* At least some of the value contents are NOT covered by the unavailable
+     vector, fall back to the optimized out heuristic.  */
+  if (!value->optimized_out)
+    return 0;
+  if (value->lval != lval_computed
+      || !value->location.computed.funcs->check_any_valid)
+    return 1;
+  return !value->location.computed.funcs->check_any_valid (value);
 }
 
 /* Insert into the vector pointed to by VECTORP the bit range starting of
@@ -529,6 +575,15 @@ mark_value_bytes_unavailable (struct value *value, int offset, int length)
   insert_into_bit_range_vector (&value->unavailable,
 				offset * TARGET_CHAR_BIT,
 				length * TARGET_CHAR_BIT);
+}
+
+void
+value_availability_flags (const struct value *value,
+			  int *optimizedp,
+			  int *unavailablep)
+{
+  *optimizedp = value->optimized_out;
+  *unavailablep = !VEC_empty (range_s, value->unavailable);
 }
 
 /* Find the first range in RANGES that overlaps the range defined by
@@ -1109,29 +1164,6 @@ mark_value_bits_optimized_out (struct value *value,
   /* For now just set the optimized out flag to indicate that part of the
      value is optimized out, this will be expanded upon in later patches.  */
   value->optimized_out = 1;  
-}
-
-int
-value_entirely_optimized_out (const struct value *value)
-{
-  if (!value->optimized_out)
-    return 0;
-  if (value->lval != lval_computed
-      || !value->location.computed.funcs->check_any_valid)
-    return 1;
-  return !value->location.computed.funcs->check_any_valid (value);
-}
-
-int
-value_bits_valid (const struct value *value, int offset, int length)
-{
-  if (!value->optimized_out)
-    return 1;
-  if (value->lval != lval_computed
-      || !value->location.computed.funcs->check_validity)
-    return 0;
-  return value->location.computed.funcs->check_validity (value, offset,
-							 length);
 }
 
 int
@@ -3473,19 +3505,26 @@ value_fetch_lazy (struct value *val)
       if (value_lazy (parent))
 	value_fetch_lazy (parent);
 
-      if (!value_bits_valid (parent,
-			     TARGET_CHAR_BIT * offset + value_bitpos (val),
-			     value_bitsize (val)))
-	mark_value_bytes_optimized_out (val, value_embedded_offset (val),
-					TYPE_LENGTH (type));
+      if (!value_bits_available (parent,
+				 TARGET_CHAR_BIT * offset + value_bitpos (val),
+				 value_bitsize (val)))
+	{
+	  int optimizedp, unavailablep;
+
+	  value_availability_flags (parent, &optimizedp, &unavailablep);
+	  if (optimizedp)
+	    mark_value_bytes_optimized_out (val, value_embedded_offset (val),
+					    TYPE_LENGTH (type));
+	  else
+	    mark_value_bytes_unavailable (val, value_embedded_offset (val),
+					  TYPE_LENGTH (type));
+	}
       else if (!unpack_value_bits_as_long (value_type (val),
 				      value_contents_for_printing (parent),
 				      offset,
 				      value_bitpos (val),
 				      value_bitsize (val), parent, &num))
-	mark_value_bytes_unavailable (val,
-				      value_embedded_offset (val),
-				      TYPE_LENGTH (type));
+	error (_("unable to unpack bitfield"));
       else
 	store_signed_integer (value_contents_raw (val), TYPE_LENGTH (type),
 			      byte_order, num);

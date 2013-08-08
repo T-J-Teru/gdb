@@ -294,11 +294,17 @@ cp_print_value_fields (struct type *type, struct type *real_type,
 		{
 		  fputs_filtered (_("<synthetic pointer>"), stream);
 		}
-	      else if (!value_bits_valid (val,
-					  TYPE_FIELD_BITPOS (type, i),
-					  TYPE_FIELD_BITSIZE (type, i)))
+	      else if (!value_bits_available (val,
+					      TYPE_FIELD_BITPOS (type, i),
+					      TYPE_FIELD_BITSIZE (type, i)))
 		{
-		  val_print_optimized_out (stream);
+		  int optimizedp, unavailablep;
+
+		  value_availability_flags (val, &optimizedp, &unavailablep);
+		  if (optimizedp)
+		    val_print_optimized_out (stream);
+		  else
+		    val_print_unavailable (stream);
 		}
 	      else
 		{
@@ -437,8 +443,7 @@ cp_print_value_fields_rtti (struct type *type,
 
   /* We require all bits to be valid in order to attempt a
      conversion.  */
-  if (value_bits_valid (val, TARGET_CHAR_BIT * offset,
-			TARGET_CHAR_BIT * TYPE_LENGTH (type)))
+  if (value_bytes_available (val, offset, TYPE_LENGTH (type)))
     {
       struct value *value;
       int full, top, using_enc;
