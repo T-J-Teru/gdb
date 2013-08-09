@@ -737,9 +737,8 @@ tui_get_register (struct frame_info *frame,
 	  if (value_lazy (old_val))
 	    value_fetch_lazy (old_val);
 
-	  if (value_optimized_out (data->value) != value_optimized_out (old_val)
-	      || !value_available_contents_eq (data->value, 0,
-					       old_val, 0, size))
+	  if (!value_available_contents_eq (data->value, 0,
+					    old_val, 0, size))
 	    *changedp = TRUE;
 	}
 

@@ -711,16 +711,6 @@ read_frame_register_value (struct value *value, struct frame_info *frame)
       struct value *regval = get_frame_register_value (frame, regnum);
       int reg_len = TYPE_LENGTH (value_type (regval)) - reg_offset;
 
-      if (value_optimized_out (regval))
-	{
-	  /* If any one of the component registers is marked optimized out
-	     then we just mark the whole composite register as optimized
-	     out.  We could do better, but this style of composite register
-	     passing is not standard, and is only used on a few targets.  */
-	  mark_value_bytes_optimized_out (value, 0, TYPE_LENGTH (value_type (value)));
-	  break;
-	}
-
       /* If the register length is larger than the number of bytes
          remaining to copy, then only copy the appropriate bytes.  */
       if (reg_len > len)
