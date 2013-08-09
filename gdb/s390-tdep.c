@@ -1689,7 +1689,7 @@ s390_unwind_pseudo_register (struct frame_info *this_frame, int regnum)
       struct value *val;
 
       val = frame_unwind_register_value (this_frame, S390_PSWA_REGNUM);
-      if (!value_optimized_out (val))
+      if (value_entirely_available (val))
 	{
 	  LONGEST pswa = value_as_long (val);
 
@@ -1706,7 +1706,7 @@ s390_unwind_pseudo_register (struct frame_info *this_frame, int regnum)
       struct value *val;
 
       val = frame_unwind_register_value (this_frame, S390_PSWM_REGNUM);
-      if (!value_optimized_out (val))
+      if (value_entirely_available (val))
 	{
 	  LONGEST pswm = value_as_long (val);
 
@@ -1727,7 +1727,7 @@ s390_unwind_pseudo_register (struct frame_info *this_frame, int regnum)
       struct value *val;
 
       val = frame_unwind_register_value (this_frame, S390_R0_REGNUM + reg);
-      if (!value_optimized_out (val))
+      if (value_entirely_available (val))
 	return value_cast (type, val);
     }
 
