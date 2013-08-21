@@ -60,6 +60,9 @@ struct mi_interp
   /* MI's builder.  */
   struct ui_out *uiout;
 
+  /* The version of the mi we're running.  */
+  int version;
+
   /* This is the interpreter for the mi... */
   struct interp *mi2_interp;
   struct interp *mi1_interp;

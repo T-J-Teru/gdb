@@ -43,7 +43,7 @@
 
 static void mi_execute_command_wrapper (const char *cmd);
 static void mi_execute_command_input_handler (char *cmd);
-static void mi_command_loop (int mi_version);
+static void mi_command_loop (void *data);
 
 /* These are hooks that we put in place while doing interpreter_exec
    so we can report interesting things that happened "behind the MI's
@@ -51,10 +51,6 @@ static void mi_command_loop (int mi_version);
 
 static int mi_interp_query_hook (const char *ctlstr, va_list ap)
   ATTRIBUTE_PRINTF (1, 0);
-
-static void mi3_command_loop (void);
-static void mi2_command_loop (void);
-static void mi1_command_loop (void);
 
 static void mi_insert_notify_hooks (void);
 static void mi_remove_notify_hooks (void);
@@ -89,7 +85,6 @@ mi_interpreter_init (struct interp *interp, int top_level)
 {
   struct mi_interp *mi = XMALLOC (struct mi_interp);
   const char *name;
-  int mi_version;
 
   /* Assign the output channel created at startup to its own global,
      so that we can create a console channel that encapsulates and
@@ -110,17 +105,17 @@ mi_interpreter_init (struct interp *interp, int top_level)
   /* INTERP_MI selects the most recent released version.  "mi2" was
      released as part of GDB 6.0.  */
   if (strcmp (name, INTERP_MI) == 0)
-    mi_version = 2;
+    mi->version = 2;
   else if (strcmp (name, INTERP_MI1) == 0)
-    mi_version = 1;
+    mi->version = 1;
   else if (strcmp (name, INTERP_MI2) == 0)
-    mi_version = 2;
+    mi->version = 2;
   else if (strcmp (name, INTERP_MI3) == 0)
-    mi_version = 3;
+    mi->version = 3;
   else
     gdb_assert_not_reached ("unhandled MI version");
 
-  mi->uiout = mi_out_new (mi_version);
+  mi->uiout = mi_out_new (mi->version);
 
   if (top_level)
     {
@@ -192,16 +187,6 @@ mi_interpreter_resume (void *data)
   clear_interpreter_hooks ();
 
   deprecated_show_load_progress = mi_load_progress;
-
-  /* If we're _the_ interpreter, take control.  */
-  if (current_interp_named_p (INTERP_MI1))
-    deprecated_command_loop_hook = mi1_command_loop;
-  else if (current_interp_named_p (INTERP_MI2))
-    deprecated_command_loop_hook = mi2_command_loop;
-  else if (current_interp_named_p (INTERP_MI3))
-    deprecated_command_loop_hook = mi3_command_loop;
-  else
-    deprecated_command_loop_hook = mi2_command_loop;
 
   return 1;
 }
@@ -322,26 +307,11 @@ mi_execute_command_input_handler (char *cmd)
 }
 
 static void
-mi1_command_loop (void)
+mi_command_loop (void *data)
 {
-  mi_command_loop (1);
-}
+  struct mi_interp *mi = data;
+  int mi_version = mi->version;
 
-static void
-mi2_command_loop (void)
-{
-  mi_command_loop (2);
-}
-
-static void
-mi3_command_loop (void)
-{
-  mi_command_loop (3);
-}
-
-static void
-mi_command_loop (int mi_version)
-{
   /* Turn off 8 bit strings in quoted output.  Any character with the
      high bit set is printed using C's octal format.  */
   sevenbit_strings = 1;
@@ -996,7 +966,8 @@ _initialize_mi_interp (void)
       mi_interpreter_exec,	/* exec_proc */
       mi_interpreter_prompt_p,	/* prompt_proc_p */
       mi_ui_out, 		/* ui_out_proc */
-      mi_set_logging		/* set_logging_proc */
+      mi_set_logging,		/* set_logging_proc */
+      mi_command_loop		/* command_loop_proc */
     };
 
   /* The various interpreter levels.  */
