@@ -2030,7 +2030,8 @@ default_print_one_register_info (struct ui_file *file,
 
   if (!value_entirely_available (val))
     {
-      fprintf_filtered (file, "*value not available*\n");
+      val_print_unavailable (file);
+      fprintf_filtered (file, "\n");
       return;
     }
   else if (value_optimized_out (val))
